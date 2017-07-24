@@ -1,8 +1,9 @@
-#' Plot a ridgeline (line with filled area underneath)
+#' Plot ridgelines and joyplots with fill gradients along the x axis
 #'
-#' Plots the sum of the `y` and `height` aesthetics versus `x`, filling the area between `y` and `y + height` with a color.
-#' Thus, the data mapped onto y and onto height must be in the same units.
-#' If you want relative scaling of the heights, you can use [geom_joy] with `stat = "identity"`.
+#' The geoms `geom_ridgeline_gradient` and `geom_joy_gradient` work just like [geom_ridgeline] and [geom_joy] except
+#' that the `fill` aesthetic can vary along the x axis. Because filling with color gradients is fraught with issues,
+#' these geoms should be considered experimental. Don't use them unless you really need to. Note that due to limitations
+#' in R's graphics system, transparency (`alpha`) has to be disabled for gradient fills.
 #'
 #' @param mapping Set of aesthetic mappings created by [ggplot2::aes()] or
 #'   [ggplot2::aes_()]. If specified and `inherit.aes = TRUE` (the
@@ -36,44 +37,26 @@
 #'   `color = "red"` or `size = 3`. They may also be parameters
 #'   to the paired geom/stat.
 #'
-#' @section Aesthetics:
-#'
-#' Required aesthetics are in bold.
-#'
-#' * **`x`**
-#' * **`y`**
-#' * **`height`** Height of the ridgeline, measured from the respective `y` value. Assumed to be positive, though this is not required.
-#' * `group` Defines the grouping. Required when the dataset contains multiple distinct ridgelines. Will typically be the same
-#' variable as is mapped to `y`.
-#' * `scale` A scaling factor to scale the height of the ridgelines.
-#' A value of 1 indicates that the heights are taken as is. This aesthetic can be used to convert
-#' `height` units into `y` units.
-#' * `min_height` A height cutoff on the drawn ridgelines. All values that fall below this cutoff will be removed.
-#' The main purpose of this cutoff is to remove long tails right at the baseline level, but other uses are possible.
-#' The cutoff is applied before any height
-#' scaling is applied via the `scale` aesthetic. Default is 0, so negative values are removed.
-#' * `color` Color of the ridgeline
-#' * `fill` Fill color of the area under the ridgeline
-#' * `alpha` Transparency level of `color` and `fill`
-#' * `group` Grouping, to draw multiple ridgelines from one dataset
-#' * `linetype` Linetype of the ridgeline
-#' * `size` Line thickness
-#'
 #' @examples
-#' d <- data.frame(x = rep(1:5, 3), y = c(rep(0, 5), rep(1, 5), rep(3, 5)),
+#' # Example for `geom_ridgeline_gradient()`
+#' library(viridis)
+#' d <- data.frame(x = rep(1:5, 3) + c(rep(0, 5), rep(0.3, 5), rep(0.6, 5)),
+#'                 y = c(rep(0, 5), rep(1, 5), rep(3, 5)),
 #'                 height = c(0, 1, 3, 4, 0, 1, 2, 3, 5, 4, 0, 5, 4, 4, 1))
-#' ggplot(d, aes(x, y, height = height, group = y)) + geom_ridgeline(fill="lightblue")
-#'
+#' ggplot(d, aes(x, y, height = height, group = y, fill = factor(x+y))) +
+#'   geom_ridgeline_gradient() +
+#'   scale_fill_viridis(discrete = TRUE, direction = -1) +
+#'   theme(legend.position = 'none')
 #' @importFrom ggplot2 layer
 #' @export
-geom_ridgeline <- function(mapping = NULL, data = NULL, stat = "identity",
+geom_ridgeline_gradient <- function(mapping = NULL, data = NULL, stat = "identity",
                       position = "identity", na.rm = FALSE, show.legend = NA,
                       inherit.aes = TRUE, ...) {
   layer(
     data = data,
     mapping = mapping,
     stat = stat,
-    geom = GeomRidgeline,
+    geom = GeomRidgelineGradient,
     position = position,
     show.legend = show.legend,
     inherit.aes = inherit.aes,
@@ -84,12 +67,12 @@ geom_ridgeline <- function(mapping = NULL, data = NULL, stat = "identity",
   )
 }
 
-#' @rdname geom_ridgeline
+#' @rdname geom_ridgeline_gradient
 #' @format NULL
 #' @usage NULL
 #' @importFrom ggplot2 ggproto Geom draw_key_polygon
 #' @export
-GeomRidgeline <- ggproto("GeomRidgeline", Geom,
+GeomRidgelineGradient <- ggproto("GeomRidgelineGradient", Geom,
   default_aes = aes(color = "black", fill = "grey80", y = 0, size = 0.5, linetype = 1,
         min_height = 0, scale = 1, alpha = NA),
 
@@ -139,19 +122,18 @@ GeomRidgeline <- ggproto("GeomRidgeline", Geom,
 
   draw_group = function(self, data, panel_params, coord, na.rm = FALSE) {
     if (na.rm) data <- data[stats::complete.cases(data[c("x", "ymin", "ymax")]), ]
+    data <- data[order(data$group, data$x), ]
 
     #if dataframe is empty there's nothing to draw
     if (nrow(data) == 0) return(grid::nullGrob())
-
-    data <- data[order(data$group, data$x), ]
 
     # remove all points that fall below the minimum height
     data$ymax[data$height < data$min_height] <- NA
 
     # Check that aesthetics are constant
-    aes <- unique(data[c("colour", "fill", "size", "linetype", "alpha")])
+    aes <- unique(data[c("colour", "size", "linetype")])
     if (nrow(aes) > 1) {
-      stop("Aesthetics can not vary along a ridgeline")
+      stop("These aesthetics can not vary along a ridgeline: color, size, linetype")
     }
     aes <- as.list(aes)
 
@@ -165,22 +147,49 @@ GeomRidgeline <- ggproto("GeomRidgeline", Geom,
     missing_pos <- !stats::complete.cases(data[c("x", "ymin", "ymax")])
     ids <- cumsum(missing_pos) + 1
     ids[missing_pos] <- NA
+    data <- cbind(data, ids)
+    data <- data[!missing_pos,]
+
+    # munching for line
+    positions <- plyr::summarise(data, x = x, y = ymax, id = ids)
+    munched_line <- ggplot2::coord_munch(coord, positions, panel_params)
+
+    # We now break down the polygons further by fill color, since
+    # we need to draw a separate polygon for each color
+
+    # calculate all the positions where the fill type changes
+    fillchange <- c(FALSE, data$fill[2:nrow(data)] != data$fill[1:nrow(data)-1])
+    # and where the id changes
+    idchange <- c(TRUE, data$ids[2:nrow(data)] != data$ids[1:nrow(data)-1])
+
+    # make new ids from all changes in fill style or original id
+    data$ids <- cumsum(fillchange | idchange)
+    # get fill color for all ids
+    fill <- data$fill[fillchange | idchange]
+    # append to aes list
+    aes <- c(aes, list(fill=fill))
+
+    # rows to be duplicated
+    dupl_rows <- which(fillchange & !idchange)
+    if (length(dupl_rows)>0){
+      rows <- data[dupl_rows, ]
+      rows$ids <- data$ids[dupl_rows-1]
+      # combine original and duplicated data
+      data <- rbind(data, rows)
+    }
 
     # munching for polygon
     positions <- plyr::summarise(data,
                                  x = c(x, rev(x)), y = c(ymax, rev(ymin)), id = c(ids, rev(ids)))
     munched_poly <- ggplot2::coord_munch(coord, positions, panel_params)
 
-    # munching for line
-    positions <- plyr::summarise(data, x = x, y = ymax, id = ids)
-    munched_line <- ggplot2::coord_munch(coord, positions, panel_params)
 
     # placing the actual grob generation into a separate function allows us to override for geom_joy2
     self$make_group_grob(munched_line, munched_poly, aes)
   },
 
   make_group_grob = function(munched_line, munched_poly, aes) {
-    lg <- ggname("geom_ridgeline",
+    lg <- ggname("geom_ridgeline_gradient",
                grid::polylineGrob(
                  munched_line$x, munched_line$y, id = munched_line$id,
                  default.units = "native",
@@ -190,13 +199,15 @@ GeomRidgeline <- ggproto("GeomRidgeline", Geom,
                    lty = aes$linetype)
                ))
 
-    ag <- ggname("geom_ridgeline",
+    ag <- ggname("geom_ridgeline_gradient",
                grid::polygonGrob(
                  munched_poly$x, munched_poly$y, id = munched_poly$id,
                  default.units = "native",
                  gp = grid::gpar(
-                   fill = ggplot2::alpha(aes$fill, aes$alpha),
-                   lty = 0)
+                   fill = aes$fill,
+                   col = aes$fill,  # we need to draw polygons with colored outlines
+                   lwd = 0.5,       # to prevent drawing artifacts at polygon boundaries
+                   lty = 1)
                ))
     grid::grobTree(ag, lg)
   }
@@ -205,75 +216,20 @@ GeomRidgeline <- ggproto("GeomRidgeline", Geom,
 
 
 
-#' Create joyplot
-#'
-#' `geom_joy` arranges multiple density plots in a staggered fashion, as in the cover of the famous Joy Division album Unknown Pleasures.
-#'
-#' By default, this geom calculates densities from the point data mapped onto the x axis. If density calculation is
-#' not wanted, use `stat="identity"` or use [geom_ridgeline]. The difference between `geom_joy` and [geom_ridgeline]
-#' is that `geom_joy` will provide automatic scaling of the ridgelines (controlled by the `scale` aesthetic), whereas
-#' [geom_ridgeline] will plot the data as is. Note that when you set `stat="identity"`, the `height` aesthetic must
-#' be provided.
-#'
-#' Note that the default [stat_joy] makes joint density estimation across all datasets. This may not generate
-#' the desired result when using faceted plots. As an alternative, you can set `stat = "density"` to use [stat_density].
-#' In this case, it is required to add the aesthetic mapping `height = ..density..` (see examples).
-#'
-#' @param panel_scaling If `TRUE`, the default, relative scaling is calculated separately
+#' @param panel_scaling Argument only to `geom_joy_gradient`. If `TRUE`, the default, relative scaling is calculated separately
 #' for each panel. If `FALSE`, relative scaling is calculated globally.
-#' @inheritParams geom_ridgeline
 #'
-#' @section Aesthetics:
-#'
-#' Required aesthetics are in bold.
-#'
-#' * **`x`**
-#' * **`y`**
-#' * `group` Defines the grouping. Not needed if a categorical variable is mapped onto `y`, but needed otherwise. Will typically be the same
-#' variable as is mapped to `y`.
-#' * `height` The height of each ridgeline at the respective x value. Automatically calculated and
-#' provided by [stat_joy] if the default stat is not changed.
-#' * `scale` A scaling factor to scale the height of the ridgelines relative to the spacing between them.
-#' A value of 1 indicates that the maximum point of any ridgeline touches the baseline right above, assuming
-#' even spacing between baselines.
-#' * `rel_min_height` Lines with heights below this cutoff will be removed. The cutoff is measured relative to the
-#' overall maximum, so `rel_min_height=0.01` would remove everything that is 1\% or less than the highest point among all
-#' ridgelines. Default is 0, so nothing is removed.
-#' alpha
-#' * `color`, `fill`, `group`, `alpha`, `linetype`, `size`, as in [geom_ridgeline].
-#'
+#' @rdname geom_ridgeline_gradient
 #' @importFrom ggplot2 layer
 #' @export
-#' @examples
-#' # set the `rel_min_height` argument to remove tails
-#' ggplot(iris, aes(x = Sepal.Length, y = Species)) +
-#'   geom_joy(rel_min_height = 0.005) +
-#'   scale_y_discrete(expand = c(0.01, 0)) +
-#'   scale_x_continuous(expand = c(0.01, 0)) +
-#'   theme_joy()
-#'
-#' # set the `scale` to determine how much overlap there is among the plots
-#' ggplot(diamonds, aes(x = price, y = cut)) +
-#'   geom_joy(scale = 4) +
-#'   scale_y_discrete(expand=c(0.01, 0)) +
-#'   scale_x_continuous(expand=c(0.01, 0)) +
-#'   theme_joy()
-#'
-#' # the same figure with colors, and using the ggplot2 density stat
-#' ggplot(diamonds, aes(x = price, y = cut, fill = cut, height = ..density..)) +
-#'   geom_joy(scale = 4, stat = "density") +
-#'   scale_y_discrete(expand = c(0.01, 0)) +
-#'   scale_x_continuous(expand = c(0.01, 0)) +
-#'   scale_fill_brewer(palette = 4) +
-#'   theme_joy() + theme(legend.position = "none")
-geom_joy <- function(mapping = NULL, data = NULL, stat = "joy",
+geom_joy_gradient <- function(mapping = NULL, data = NULL, stat = "joy",
                      panel_scaling = TRUE,
-                     na.rm = FALSE, show.legend = NA, inherit.aes = TRUE, ...) {
+                     na.rm = TRUE, show.legend = NA, inherit.aes = TRUE, ...) {
   layer(
     data = data,
     mapping = mapping,
     stat = stat,
-    geom = GeomJoy,
+    geom = GeomJoyGradient,
     position = "identity",
     show.legend = show.legend,
     inherit.aes = inherit.aes,
@@ -285,32 +241,36 @@ geom_joy <- function(mapping = NULL, data = NULL, stat = "joy",
   )
 }
 
-#' @rdname geom_joy
+#' @rdname geom_ridgeline_gradient
 #' @format NULL
 #' @usage NULL
 #' @importFrom grid gTree gList
+#' @examples
+#'
+#' # Example for `geom_joy_gradient()`
+#' ggplot(lincoln_weather, aes(x = `Mean Temperature [F]`, y = `Month`, fill = ..x..)) +
+#'   geom_joy_gradient(scale = 3, rel_min_height = 0.01) +
+#'   scale_x_continuous(expand = c(0.01, 0)) +
+#'   scale_y_discrete(expand = c(0.01, 0)) +
+#'   scale_fill_viridis(name = "Temp. [F]", option = "C") +
+#'   labs(title = 'Temperatures in Lincoln NE in 2016') +
+#'   theme_joy(font_size = 13, grid = TRUE) + theme(axis.title.y = element_blank())
 #' @export
-GeomJoy <- ggproto("GeomJoy", GeomRidgeline,
+GeomJoyGradient <- ggproto("GeomJoyGradient", GeomRidgelineGradient,
   default_aes =
     aes(color = "black",
         fill = "grey70",
         size = 0.5,
         linetype = 1,
-        alpha = NA,
         scale = 1.8,
-        rel_min_height = 0),
+        rel_min_height = 0,
+        alpha = NA),
 
    required_aes = c("x", "y", "height"),
 
    extra_params = c("na.rm", "panel_scaling"),
 
    setup_data = function(self, data, params) {
-     # provide default for panel scaling parameter if it doesn't exist,
-     # happens if the geom is called from a stat
-     if (is.null(params$panel_scaling)) {
-       params$panel_scaling <- TRUE
-     }
-
      # calculate internal scale
      yrange = max(data$y) - min(data$y)
      n = length(unique(data$y))
@@ -355,57 +315,5 @@ GeomJoy <- ggproto("GeomJoy", GeomRidgeline,
                ymin = y,
                ymax = y + iscale*scale*height,
                min_height = hmax*rel_min_height)
-  }
-)
-
-
-#' `geom_joy2` is identical to `geom_joy` except it draws closed polygons rather than ridgelines.
-#'
-#' @rdname geom_joy
-#' @importFrom ggplot2 layer
-#' @export
-#' @examples
-#'
-#' # use geom_joy2() instead of geom_joy() for solid polygons
-#' ggplot(iris, aes(x = Sepal.Length, y = Species)) +
-#'   geom_joy2() +
-#'   scale_y_discrete(expand = c(0.01, 0)) +
-#'   scale_x_continuous(expand = c(0.01, 0)) +
-#'   theme_joy()
-geom_joy2 <- function(mapping = NULL, data = NULL, stat = "joy",
-                      panel_scaling = TRUE,
-                      na.rm = FALSE, show.legend = NA, inherit.aes = TRUE, ...) {
-  layer(
-    data = data,
-    mapping = mapping,
-    stat = stat,
-    geom = GeomJoy2,
-    position = "identity",
-    show.legend = show.legend,
-    inherit.aes = inherit.aes,
-    params = list(
-      na.rm = na.rm,
-      panel_scaling = panel_scaling,
-      ...
-    )
-  )
-}
-
-#' @rdname geom_joy
-#' @format NULL
-#' @usage NULL
-#' @export
-GeomJoy2 <- ggproto("GeomJoy2", GeomJoy,
-  make_group_grob = function(munched_line, munched_poly, aes) {
-    ggname("geom_joy2",
-           grid::polygonGrob(
-             munched_poly$x, munched_poly$y, id = munched_poly$id,
-             default.units = "native",
-             gp = grid::gpar(
-             fill = ggplot2::alpha(aes$fill, aes$alpha),
-             col = aes$colour,
-             lwd = aes$size * .pt,
-             lty = aes$linetype)
-           ))
   }
 )

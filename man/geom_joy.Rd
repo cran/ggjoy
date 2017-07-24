@@ -9,11 +9,11 @@
 \title{Create joyplot}
 \usage{
 geom_joy(mapping = NULL, data = NULL, stat = "joy",
-  panel_scaling = TRUE, na.rm = TRUE, show.legend = NA,
+  panel_scaling = TRUE, na.rm = FALSE, show.legend = NA,
   inherit.aes = TRUE, ...)
 
 geom_joy2(mapping = NULL, data = NULL, stat = "joy",
-  panel_scaling = TRUE, na.rm = TRUE, show.legend = NA,
+  panel_scaling = TRUE, na.rm = FALSE, show.legend = NA,
   inherit.aes = TRUE, ...)
 }
 \arguments{
@@ -38,8 +38,8 @@ will be used as the layer data.}
 \item{stat}{The statistical transformation to use on the data for this
 layer, as a string.}
 
-\item{panel_scaling}{Should scaling be calculated separately for each panel (default) or
-(if set to \code{FALSE}) globally.}
+\item{panel_scaling}{If \code{TRUE}, the default, relative scaling is calculated separately
+for each panel. If \code{FALSE}, relative scaling is calculated globally.}
 
 \item{na.rm}{If \code{FALSE}, the default, missing values are removed with
 a warning. If \code{TRUE}, missing values are silently removed.}
@@ -90,7 +90,7 @@ even spacing between baselines.
 overall maximum, so \code{rel_min_height=0.01} would remove everything that is 1\% or less than the highest point among all
 ridgelines. Default is 0, so nothing is removed.
 alpha
-\item \code{color}, \code{fill}, \code{group}, \code{linetype}, \code{size}, as in \link{geom_ridgeline}.
+\item \code{color}, \code{fill}, \code{group}, \code{alpha}, \code{linetype}, \code{size}, as in \link{geom_ridgeline}.
 }
 }
 
@@ -116,16 +116,6 @@ ggplot(diamonds, aes(x = price, y = cut, fill = cut, height = ..density..)) +
   scale_x_continuous(expand = c(0.01, 0)) +
   scale_fill_brewer(palette = 4) +
   theme_joy() + theme(legend.position = "none")
-\donttest{
-# evolution of movie lengths over time
-# requires the ggplot2movies package
-library(ggplot2movies)
-ggplot(movies[movies$year>1912,], aes(x = length, y = year, group = year)) +
-  geom_joy(scale = 10, size = 0.25, rel_min_height = 0.03) +
-  theme_joy() +
-  scale_x_continuous(limits = c(1, 200), expand = c(0.01, 0)) +
-  scale_y_reverse(breaks = c(2000, 1980, 1960, 1940, 1920, 1900), expand = c(0.01, 0))
-}
 
 # use geom_joy2() instead of geom_joy() for solid polygons
 ggplot(iris, aes(x = Sepal.Length, y = Species)) +
