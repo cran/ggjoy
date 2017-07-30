@@ -9,16 +9,16 @@
 \title{Plot ridgelines and joyplots with fill gradients along the x axis}
 \usage{
 geom_ridgeline_gradient(mapping = NULL, data = NULL, stat = "identity",
-  position = "identity", na.rm = FALSE, show.legend = NA,
-  inherit.aes = TRUE, ...)
+  position = "identity", na.rm = FALSE, gradient_lwd = 0.5,
+  show.legend = NA, inherit.aes = TRUE, ...)
 
 geom_joy_gradient(mapping = NULL, data = NULL, stat = "joy",
-  panel_scaling = TRUE, na.rm = TRUE, show.legend = NA,
-  inherit.aes = TRUE, ...)
+  panel_scaling = TRUE, na.rm = TRUE, gradient_lwd = 0.5,
+  show.legend = NA, inherit.aes = TRUE, ...)
 }
 \arguments{
-\item{mapping}{Set of aesthetic mappings created by \code{\link[ggplot2:aes]{ggplot2::aes()}} or
-\code{\link[ggplot2:aes_]{ggplot2::aes_()}}. If specified and \code{inherit.aes = TRUE} (the
+\item{mapping}{Set of aesthetic mappings created by \code{\link[=aes]{aes()}} or
+\code{\link[=aes_]{aes_()}}. If specified and \code{inherit.aes = TRUE} (the
 default), it is combined with the default mapping at the top level of the
 plot. You must supply \code{mapping} if there is no plot mapping.}
 
@@ -26,7 +26,7 @@ plot. You must supply \code{mapping} if there is no plot mapping.}
 options:
 
 If \code{NULL}, the default, the data is inherited from the plot
-data as specified in the call to \code{\link[ggplot2:ggplot]{ggplot2::ggplot()}}.
+data as specified in the call to \code{\link[=ggplot]{ggplot()}}.
 
 A \code{data.frame}, or other object, will override the plot
 data.
@@ -44,6 +44,9 @@ a call to a position adjustment function.}
 \item{na.rm}{If \code{FALSE}, the default, missing values are removed with
 a warning. If \code{TRUE}, missing values are silently removed.}
 
+\item{gradient_lwd}{A parameter to needed to remove rendering artifacts inside the
+rendered gradients. Should ideally be 0, but often needs to be around 0.5 or higher.}
+
 \item{show.legend}{logical. Should this layer be included in the legends?
 \code{NA}, the default, includes if any aesthetics are mapped.
 \code{FALSE} never includes, and \code{TRUE} always includes.}
@@ -51,7 +54,7 @@ a warning. If \code{TRUE}, missing values are silently removed.}
 \item{inherit.aes}{If \code{FALSE}, overrides the default aesthetics,
 rather than combining with them.}
 
-\item{...}{other arguments passed on to \code{\link[ggplot2:layer]{ggplot2::layer()}}. These are
+\item{...}{other arguments passed on to \code{\link[=layer]{layer()}}. These are
 often aesthetics, used to set an aesthetic to a fixed value, like
 \code{color = "red"} or \code{size = 3}. They may also be parameters
 to the paired geom/stat.}
@@ -60,7 +63,7 @@ to the paired geom/stat.}
 for each panel. If \code{FALSE}, relative scaling is calculated globally.}
 }
 \description{
-The geoms \code{geom_ridgeline_gradient} and \code{geom_joy_gradient} work just like \link{geom_ridgeline} and \link{geom_joy} except
+The geoms \code{geom_ridgeline_gradient} and \code{geom_joy_gradient} work just like \code{\link{geom_ridgeline}} and \code{\link{geom_joy}} except
 that the \code{fill} aesthetic can vary along the x axis. Because filling with color gradients is fraught with issues,
 these geoms should be considered experimental. Don't use them unless you really need to. Note that due to limitations
 in R's graphics system, transparency (\code{alpha}) has to be disabled for gradient fills.
