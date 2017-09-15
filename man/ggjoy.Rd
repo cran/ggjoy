@@ -4,7 +4,12 @@
 \name{ggjoy}
 \alias{ggjoy}
 \alias{ggjoy-package}
-\title{ggjoy.}
+\alias{geom_joy}
+\alias{geom_joy2}
+\alias{geom_joy_gradient}
+\alias{stat_joy}
+\alias{theme_joy}
+\title{ggjoy}
 \description{
-ggjoy.
+This package is deprecated. Please switch over to using \link{ggridges}.
 }
